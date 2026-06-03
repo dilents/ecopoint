@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Auto-Sort Bin 3-in-1 — 3D Model</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:100%;height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',sans-serif;background:#e2e2e2}
+  #app{position:fixed;inset:0}
+  canvas{position:absolute;top:0;left:0;display:block;z-index:0}
+
+  /* ── Overlay ── */
+  #ui{position:absolute;inset:0;z-index:10;pointer-events:none;display:flex;justify-content:space-between;align-items:flex-start;padding:22px}
+
+  #title{pointer-events:none}
+  #title h1{font-size:16px;font-weight:700;color:#1a1a1a;letter-spacing:-.3px}
+  #title p{font-size:11px;color:#666;margin-top:3px}
+
+  #panel{display:flex;flex-direction:column;gap:7px;pointer-events:all}
+  button{display:block;width:100%;background:rgba(255,255,255,.88);backdrop-filter:blur(14px);border:1px solid rgba(0,0,0,.1);border-radius:11px;padding:9px 18px;font-size:12px;font-weight:600;color:#222;cursor:pointer;text-align:left;transition:all .14s;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+  button:hover{background:#fff;transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,0,0,.1)}
+  button.on{background:#111;color:#fff;border-color:#111;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+  button.on-green{background:#1a7a38;color:#fff;border-color:#1a7a38;box-shadow:0 2px 8px rgba(26,122,56,.4)}
+
+  /* ── Sort indicator (center) ── */
+  #sort-indicator{position:absolute;bottom:72px;left:50%;transform:translateX(-50%);background:rgba(8,8,12,.84);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:10px 20px;color:#fff;font-size:13px;font-weight:600;pointer-events:none;opacity:0;transition:opacity .3s;white-space:nowrap;z-index:10;text-align:center}
+  #sort-indicator .zone{font-size:10px;color:rgba(255,255,255,.6);margin-top:3px}
+
+  /* ── Hint ── */
+  #hint{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,.78);backdrop-filter:blur(10px);border:1px solid rgba(0,0,0,.07);border-radius:20px;padding:7px 18px;font-size:11px;color:#555;pointer-events:none;z-index:10;white-space:nowrap}
+
+  /* ── Labels ── */
+  #labels{position:fixed;inset:0;pointer-events:none;z-index:20;display:none}
+  .lbl{position:absolute;display:flex;align-items:center;transition:opacity .2s}
+  .lbl-R{flex-direction:row}
+  .lbl-L{flex-direction:row-reverse}
+  .lbl-dot{width:8px;height:8px;border-radius:50%;border:2px solid rgba(255,255,255,.9);flex-shrink:0;box-shadow:0 0 7px currentColor}
+  .lbl-line{height:1.5px;width:38px;flex-shrink:0;opacity:.7}
+  .lbl-card{display:flex;align-items:flex-start;gap:6px;background:rgba(8,8,14,.84);backdrop-filter:blur(10px);border-radius:8px;padding:6px 9px;border:1px solid rgba(255,255,255,.1);max-width:200px}
+  .lbl-num{min-width:18px;height:18px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#fff;flex-shrink:0;margin-top:1px}
+  .lbl-info{display:flex;flex-direction:column;gap:1px}
+  .lbl-title{font-size:11px;font-weight:700;color:#fff;white-space:nowrap}
+  .lbl-desc{font-size:9px;color:rgba(255,255,255,.58);line-height:1.35;white-space:normal}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="ui">
+    <div id="title">
+      <h1>SmartSort Bin 3-in-1</h1>
+      <p>AI Auto-Sorting Smart Waste Station</p>
+    </div>
+    <div id="panel">
+      <button id="bInt"  onclick="tInterior()">🔍 Lihat Dalam</button>
+      <button id="bSort" onclick="tSort()" class="on-green">▶ Auto Sort</button>
+      <button id="bLbl"  onclick="tLabels()">🏷 Label Bagian</button>
+      <button id="bXr"   onclick="tXray()">◈ X-Ray</button>
+    </div>
+  </div>
+
+  <div id="sort-indicator">
+    <div id="sort-label">🔍 Mendeteksi sampah…</div>
+    <div class="zone" id="sort-zone">AI Sensor aktif</div>
+  </div>
+
+  <!-- Part labels -->
+  <div id="labels">
+    <div class="lbl lbl-R" id="lbl-slot"><div class="lbl-dot" style="background:#ff9f0a;color:#ff9f0a"></div><div class="lbl-line" style="background:#ff9f0a"></div><div class="lbl-card"><div class="lbl-num" style="background:#ff9f0a">01</div><div class="lbl-info"><div class="lbl-title">Lubang Pembuangan</div><div class="lbl-desc">Masukkan sampah di sini. Sensor AI langsung mendeteksi jenis sampah</div></div></div></div>
+    <div class="lbl lbl-L" id="lbl-ai"><div class="lbl-dot" style="background:#ff9f0a;color:#ff9f0a"></div><div class="lbl-line" style="background:#ff9f0a"></div><div class="lbl-card"><div class="lbl-num" style="background:#ff9f0a">02</div><div class="lbl-info"><div class="lbl-title">Sensor AI / Kamera Deteksi</div><div class="lbl-desc">Mendeteksi & klasifikasi jenis sampah dalam &lt;1.5 detik, akurasi &gt;95%</div></div></div></div>
+    <div class="lbl lbl-L" id="lbl-qr"><div class="lbl-dot" style="background:#34c759;color:#34c759"></div><div class="lbl-line" style="background:#34c759"></div><div class="lbl-card"><div class="lbl-num" style="background:#34c759">03</div><div class="lbl-info"><div class="lbl-title">Scanner QR Code</div><div class="lbl-desc">Scan QR dari aplikasi member untuk login &amp; kumpulkan poin reward</div></div></div></div>
+    <div class="lbl lbl-R" id="lbl-lcd"><div class="lbl-dot" style="background:#007aff;color:#007aff"></div><div class="lbl-line" style="background:#007aff"></div><div class="lbl-card"><div class="lbl-num" style="background:#007aff">04</div><div class="lbl-info"><div class="lbl-title">Layar LCD 4"</div><div class="lbl-desc">Tampilkan instruksi, poin earned, dan status pemilahan real-time</div></div></div></div>
+    <div class="lbl lbl-R" id="lbl-led"><div class="lbl-dot" style="background:#5e5ce6;color:#5e5ce6"></div><div class="lbl-line" style="background:#5e5ce6"></div><div class="lbl-card"><div class="lbl-num" style="background:#5e5ce6">05</div><div class="lbl-info"><div class="lbl-title">LED Indikator 3 Zona</div><div class="lbl-desc">Biru = B3 &nbsp;·&nbsp; Hijau = Daur Ulang &nbsp;·&nbsp; Kuning = Non-Daur Ulang</div></div></div></div>
+    <div class="lbl lbl-R" id="lbl-door"><div class="lbl-dot" style="background:#8e8e93;color:#8e8e93"></div><div class="lbl-line" style="background:#8e8e93"></div><div class="lbl-card"><div class="lbl-num" style="background:#636366">06</div><div class="lbl-info"><div class="lbl-title">Pintu Akses Ganda</div><div class="lbl-desc">Buka untuk pengosongan &amp; pemeliharaan kompartemen sampah internal</div></div></div></div>
+    <div class="lbl lbl-R" id="lbl-wood"><div class="lbl-dot" style="background:#7a5228;color:#7a5228"></div><div class="lbl-line" style="background:#7a5228"></div><div class="lbl-card"><div class="lbl-num" style="background:#7a5228">07</div><div class="lbl-info"><div class="lbl-title">Panel Kayu Komposit</div><div class="lbl-desc">Material ramah lingkungan, tahan UV &amp; cuaca, estetik &amp; modern</div></div></div></div>
+    <div class="lbl lbl-L" id="lbl-frame"><div class="lbl-dot" style="background:#9c9c9e;color:#9c9c9e"></div><div class="lbl-line" style="background:#9c9c9e"></div><div class="lbl-card"><div class="lbl-num" style="background:#636366">08</div><div class="lbl-info"><div class="lbl-title">Rangka Baja SS316</div><div class="lbl-desc">Struktur anti karat &amp; korosi, cocok indoor maupun outdoor</div></div></div></div>
+    <div class="lbl lbl-R" id="lbl-base"><div class="lbl-dot" style="background:#3a3a3c;color:#3a3a3c"></div><div class="lbl-line" style="background:#636366"></div><div class="lbl-card"><div class="lbl-num" style="background:#3a3a3c">09</div><div class="lbl-info"><div class="lbl-title">Alas &amp; Kaki Antislip</div><div class="lbl-desc">Rubber feet non-slip, stabil di berbagai permukaan lantai</div></div></div></div>
+  </div>
+
+  <div id="hint">Drag to rotate &nbsp;·&nbsp; Scroll to zoom &nbsp;·&nbsp; Right-drag to pan</div>
+</div>
+
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ── Renderer ──────────────────────────────────────────────────────────────
+const app = document.getElementById('app');
+// Robust size — use screen dims as fallback if innerWidth is suspiciously small
+const VW = () => Math.max(window.innerWidth,  screen.availWidth  > 100 ? Math.round(screen.availWidth  * 0.55) : 900);
+const VH = () => Math.max(window.innerHeight, screen.availHeight > 100 ? Math.round(screen.availHeight * 0.75) : 680);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(VW(), VH(), false);
+renderer.domElement.style.width  = '100%';
+renderer.domElement.style.height = '100%';
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+app.prepend(renderer.domElement); // canvas behind UI overlay
+
+// ── Scene ─────────────────────────────────────────────────────────────────
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xe6e6e6);
+scene.fog = new THREE.FogExp2(0xe6e6e6, 0.045);
+
+// ── Camera ────────────────────────────────────────────────────────────────
+const cam = new THREE.PerspectiveCamera(36, VW() / VH(), 0.01, 80);
+
+// Auto-resize via ResizeObserver (catches iframe/panel resizes)
+new ResizeObserver(() => {
+  const w = VW(), h = VH();
+  renderer.setSize(w, h, false);
+  cam.aspect = w / h;
+  cam.updateProjectionMatrix();
+}).observe(document.documentElement);
+cam.position.set(0, 0.75, 3.6);
+
+const orbit = new OrbitControls(cam, renderer.domElement);
+orbit.enableDamping = true;
+orbit.dampingFactor = 0.065;
+orbit.minDistance = 1.4;
+orbit.maxDistance = 8;
+orbit.maxPolarAngle = Math.PI * 0.87;
+orbit.target.set(0, 0.5, 0);
+orbit.update();
+
+// ── Lights ────────────────────────────────────────────────────────────────
+scene.add(new THREE.AmbientLight(0xffffff, 0.50));
+scene.add(new THREE.HemisphereLight(0xeef4ff, 0xfff0e8, 0.35));
+
+function dLight(col, int, x, y, z, sh) {
+  const l = new THREE.DirectionalLight(col, int);
+  l.position.set(x, y, z);
+  if (sh) {
+    l.castShadow = true;
+    l.shadow.mapSize.set(2048, 2048);
+    l.shadow.camera.near = 0.1; l.shadow.camera.far = 20;
+    l.shadow.camera.left = l.shadow.camera.bottom = -3;
+    l.shadow.camera.right = l.shadow.camera.top = 3;
+    l.shadow.bias = -0.001;
+  }
+  scene.add(l);
+  return l;
+}
+dLight(0xfff5e8, 1.3,  4, 8, 5,  true);
+dLight(0xd8eaff, 0.5, -4, 4, -3, false);
+dLight(0xffffff, 0.3,  0,-2,  4, false);
+
+// ── Materials ─────────────────────────────────────────────────────────────
+const S = (col, r, m, x) => new THREE.MeshStandardMaterial({ color: col, roughness: r, metalness: m ?? 0, ...x });
+
+const M = {
+  frame:    S(0x9c9c9e, 0.30, 0.65),          // silver-gray metal frame
+  frameDk:  S(0x2a2a2c, 0.22, 0.60),          // dark metal (header)
+  door:     S(0xc4c4c6, 0.22, 0.10),          // light gray door panels
+  doorEdge: S(0x7a7a7c, 0.30, 0.40),          // door frame/edge
+  wood:     S(0x7a5228, 0.82, 0.00),          // wood slat color
+  woodDk:   S(0x5c3d1a, 0.88, 0.00),          // darker wood grain
+  base:     S(0xb0b0b2, 0.45, 0.30),          // base plate
+  rubber:   S(0x1a1a1c, 0.95, 0.00),          // feet
+  screen:   S(0x060608, 0.04, 0.10),          // screen glass
+  scanFrm:  S(0x1a1a1c, 0.28, 0.55),          // scanner housing
+  slotVoid: S(0x060608, 0.90, 0.00),          // slot opening
+  // Inner compartment bins
+  binBlue:  S(0x204080, 0.45, 0.05),
+  binGreen: S(0x1a5e30, 0.45, 0.05),
+  binGray:  S(0x3c3e42, 0.50, 0.05),
+  innerWall:S(0xd0d0d2, 0.70, 0.05),
+  chute:    S(0x4a4a4e, 0.35, 0.40),
+  flap:     S(0x888888, 0.30, 0.55),          // sorting flap
+  // Emissive
+  ledBlue:  new THREE.MeshStandardMaterial({ color: 0x007aff, roughness: 0.2, emissive: 0x003aaa, emissiveIntensity: 0.9 }),
+  ledGreen: new THREE.MeshStandardMaterial({ color: 0x34c759, roughness: 0.2, emissive: 0x1a9a3a, emissiveIntensity: 0.9 }),
+  ledAmber: new THREE.MeshStandardMaterial({ color: 0xff9f0a, roughness: 0.2, emissive: 0xcc6600, emissiveIntensity: 0.9 }),
+  scanBeam: new THREE.MeshStandardMaterial({ color: 0x00ff44, emissive: 0x00cc33, emissiveIntensity: 2.5 }),
+  scrUI:    new THREE.MeshStandardMaterial({ color: 0x0a1a3a, roughness: 0.1, emissive: 0x040e1f, emissiveIntensity: 0.7 }),
+  scrBar:   new THREE.MeshStandardMaterial({ color: 0x007aff, roughness: 0.2, emissive: 0x004acc, emissiveIntensity: 0.8 }),
+  progFill: new THREE.MeshStandardMaterial({ color: 0x34c759, roughness: 0.2, emissive: 0x1a8a35, emissiveIntensity: 0.7 }),
+  wireframe:new THREE.MeshBasicMaterial({ color: 0x222222, wireframe: true }),
+  xray:     new THREE.MeshStandardMaterial({ color: 0x3366ff, roughness: 0.3, transparent: true, opacity: 0.12, side: THREE.DoubleSide }),
+};
+
+// ── Mesh factory ──────────────────────────────────────────────────────────
+function mk(geo, mat) {
+  const m = new THREE.Mesh(geo, mat);
+  m.castShadow = m.receiveShadow = true;
+  return m;
+}
+function bx(w, h, d, mat)    { return mk(new THREE.BoxGeometry(w, h, d), mat); }
+function cy(r, h, seg, mat)  { return mk(new THREE.CylinderGeometry(r, r, h, seg), mat); }
+function sph(r, seg, mat)    { return mk(new THREE.SphereGeometry(r, seg, seg), mat); }
+function tor(r, t, seg, mat) { return mk(new THREE.TorusGeometry(r, t, 8, seg), mat); }
+
+// ── Floor & environment ───────────────────────────────────────────────────
+const floorGeo = new THREE.CircleGeometry(5, 64);
+const floor = mk(floorGeo, S(0xd8d8d8, 0.88));
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true; floor.castShadow = false;
+scene.add(floor);
+scene.add(new THREE.GridHelper(8, 32, 0xbbbbbb, 0xcbcbcb));
+
+// Shadow catcher
+const shadowPlane = mk(
+  new THREE.PlaneGeometry(4, 4),
+  new THREE.ShadowMaterial({ opacity: 0.18 })
+);
+shadowPlane.rotation.x = -Math.PI / 2;
+shadowPlane.position.y = 0.001;
+shadowPlane.receiveShadow = true;
+scene.add(shadowPlane);
+
+// ── Dimensions ────────────────────────────────────────────────────────────
+const UW = 0.60;   // unit width
+const UH = 1.05;   // total height
+const UD = 0.42;   // depth
+const HH = 0.26;   // header height
+const BH = UH - HH; // body height = 0.79
+const BY = BH / 2;  // body Y center
+const HY = BH + HH / 2; // header Y center
+
+// ── Component Groups ──────────────────────────────────────────────────────
+const BIN    = new THREE.Group();
+scene.add(BIN);
+
+const Gbase   = new THREE.Group();
+const Gbody   = new THREE.Group();
+const Gheader = new THREE.Group();
+const Gwood   = new THREE.Group();
+const Gdoors  = new THREE.Group();
+const Ginner  = new THREE.Group();
+const Gdetail = new THREE.Group();
+
+[Gbase, Gbody, Gheader, Gwood, Gdoors, Ginner, Gdetail].forEach(g => BIN.add(g));
+
+// ─────────────────────────────────────────────────────────────────────────
+// BASE
+// ─────────────────────────────────────────────────────────────────────────
+const basePlate = bx(UW + 0.06, 0.022, UD + 0.06, M.base);
+basePlate.position.y = 0.011;
+Gbase.add(basePlate);
+
+// Front kick plate (darker edge)
+const kick = bx(UW + 0.062, 0.010, 0.018, M.frame);
+kick.position.set(0, 0.005, (UD + 0.06)/2 - 0.009);
+Gbase.add(kick);
+
+// Rubber feet
+[[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([sx,sz]) => {
+  const f = cy(0.024, 0.016, 12, M.rubber);
+  f.position.set(sx*0.24, 0.008, sz*0.17);
+  Gbase.add(f);
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// BODY SHELL (storage section)
+// ─────────────────────────────────────────────────────────────────────────
+// Main body
+const mainShell = bx(UW, BH, UD, M.door);
+mainShell.position.y = BY;
+Gbody.add(mainShell);
+
+// Corner columns / vertical frame rails
+[-1, 1].forEach(sx => {
+  const rail = bx(0.022, BH + 0.005, UD + 0.006, M.frame);
+  rail.position.set(sx * (UW/2 - 0.011 + 0.022/2 - 0.001), BY, 0);
+  Gbody.add(rail);
+});
+
+// Horizontal frame strip at mid-body
+const midRail = bx(UW + 0.006, 0.020, UD + 0.006, M.frame);
+midRail.position.set(0, BH * 0.42, 0);
+Gbody.add(midRail);
+
+// Top frame strip (body/header junction)
+const topBodyRail = bx(UW + 0.006, 0.018, UD + 0.006, M.frame);
+topBodyRail.position.set(0, BH + 0.009, 0);
+Gbody.add(topBodyRail);
+
+// ─────────────────────────────────────────────────────────────────────────
+// WOOD SLAT SIDE PANELS
+// ─────────────────────────────────────────────────────────────────────────
+function woodPanel(group, sideX) {
+  const sign = Math.sign(sideX);
+  const SLAT_W = 0.016;
+  const GAP    = 0.009;
+  const THICK  = 0.013;
+  const SLAT_H = BH - 0.06;
+  const slatUD = UD - 0.05;
+  const count  = Math.floor(slatUD / (SLAT_W + GAP));
+  const totalZ = count * (SLAT_W + GAP) - GAP;
+  const startZ = -totalZ / 2;
+
+  // Backing panel
+  const back = bx(THICK * 0.4, SLAT_H, slatUD, S(0x5c3d1a, 0.85));
+  back.position.set(sideX + sign * THICK * 0.2, BY, 0);
+  group.add(back);
+
+  for (let i = 0; i < count; i++) {
+    const z = startZ + i * (SLAT_W + GAP) + SLAT_W / 2;
+    const col = (i % 3 === 0) ? M.woodDk : M.wood;
+    const slat = bx(THICK, SLAT_H - (i % 5 === 0 ? 0.01 : 0), SLAT_W, col);
+    slat.position.set(sideX + sign * THICK / 2, BY, z);
+    group.add(slat);
+  }
+}
+woodPanel(Gwood, -(UW/2 + 0.006));
+woodPanel(Gwood,  (UW/2 + 0.006));
+
+// ─────────────────────────────────────────────────────────────────────────
+// FRONT DOORS (2 half-doors, open to reveal interior)
+// ─────────────────────────────────────────────────────────────────────────
+const DOOR_W  = (UW - 0.022*2 - 0.006) / 2; // each door half-width
+const DOOR_H  = BH - 0.020 - 0.018;
+const DOOR_DY = BY - 0.001;
+
+function makeDoor(group, sx) {
+  const pivot = new THREE.Group();
+  pivot.position.set(sx * UW/2 - sx * 0.022, DOOR_DY, UD/2);
+  group.add(pivot);
+
+  // Door panel
+  const panel = bx(DOOR_W, DOOR_H, 0.012, M.door);
+  panel.position.set(-sx * DOOR_W/2, 0, 0.006);
+  pivot.add(panel);
+
+  // Door edge bevel strip
+  const edge = bx(0.006, DOOR_H + 0.006, 0.014, M.doorEdge);
+  edge.position.set(-sx * DOOR_W + sx * 0.003, 0, 0.006);
+  pivot.add(edge);
+
+  // Handle groove
+  const handle = bx(0.008, 0.060, 0.006, M.frameDk);
+  handle.position.set(-sx * 0.035, 0, 0.015);
+  pivot.add(handle);
+
+  // Subtle horizontal channel line at mid-door
+  const channel = bx(DOOR_W - 0.01, 0.003, 0.003, M.frame);
+  channel.position.set(-sx * DOOR_W/2 + sx * 0.005, 0, 0.014);
+  pivot.add(channel);
+
+  return pivot;
+}
+const doorL = makeDoor(Gdoors, -1);
+const doorR = makeDoor(Gdoors, +1);
+
+// Rear access panel
+const rearPanel = bx(UW - 0.048, DOOR_H, 0.010, M.door);
+rearPanel.position.set(0, DOOR_DY, -UD/2 - 0.005);
+Gbody.add(rearPanel);
+const rearEdge = bx(UW - 0.040, DOOR_H + 0.006, 0.006, M.doorEdge);
+rearEdge.position.set(0, DOOR_DY, -UD/2 - 0.003);
+Gbody.add(rearEdge);
+
+// ─────────────────────────────────────────────────────────────────────────
+// HEADER / SMART MODULE
+// ─────────────────────────────────────────────────────────────────────────
+// Main header box
+const headerBox = bx(UW + 0.006, HH, UD + 0.006, M.frameDk);
+headerBox.position.set(0, HY, 0);
+Gheader.add(headerBox);
+
+// Top rounded cap (simulate with slightly wider tapered box)
+const headerTop = bx(UW + 0.012, 0.018, UD + 0.012, M.frameDk);
+headerTop.position.set(0, BH + HH + 0.009, 0);
+Gheader.add(headerTop);
+
+// Header front lower trim (lighter color strip)
+const headerTrim = bx(UW, 0.012, 0.006, M.frame);
+headerTrim.position.set(0, BH + HH - 0.006, UD/2 + 0.003);
+Gheader.add(headerTrim);
+
+// ── TRI-ZONE LED BAR (at bottom of header front) ──────────────────────
+const LED_W = (UW - 0.02) / 3;
+const ledY   = BH + 0.008;
+const ledZ   = UD/2 + 0.004;
+
+const ledB = bx(LED_W, 0.006, 0.004, M.ledBlue);
+ledB.position.set(-LED_W, ledY, ledZ);
+Gheader.add(ledB);
+
+const ledG = bx(LED_W, 0.006, 0.004, M.ledGreen);
+ledG.position.set(0, ledY, ledZ);
+Gheader.add(ledG);
+
+const ledA = bx(LED_W, 0.006, 0.004, M.ledAmber);
+ledA.position.set(LED_W, ledY, ledZ);
+Gheader.add(ledA);
+
+// Dividers between LED zones
+[-LED_W/2, LED_W/2].forEach(lx => {
+  const div = bx(0.003, 0.010, 0.005, M.frameDk);
+  div.position.set(lx + LED_W/2, ledY, ledZ);
+  Gheader.add(div);
+});
+
+// ── TOP WASTE OPENING (lubang pembuangan di atas) ─────────────────────
+// Opening dimensions
+const OW = UW - 0.04, OD = UD - 0.04; // opening — almost full top surface
+const TOP_Y = BH + HH + 0.009;        // top surface Y of header cap
+const capH  = 0.018;                   // cap plate thickness
+const rimH  = 0.055, rimT = 0.014;    // raised rim height / wall thickness
+
+// Header top as 4-piece frame (hole in centre)
+const fw = (UW + 0.012 - OW) / 2;   // side strip width
+const fd = (UD + 0.012 - OD) / 2;   // front/back strip depth
+[
+  { w: fw,           h: capH, d: UD + 0.012, x: -(OW/2 + fw/2),       z: 0          },
+  { w: fw,           h: capH, d: UD + 0.012, x:  (OW/2 + fw/2),       z: 0          },
+  { w: OW,           h: capH, d: fd,         x: 0,                     z: -(OD/2 + fd/2) },
+  { w: OW,           h: capH, d: fd,         x: 0,                     z:  (OD/2 + fd/2) },
+].forEach(p => {
+  const s = bx(p.w, p.h, p.d, M.frameDk);
+  s.position.set(p.x, TOP_Y, p.z);
+  Gheader.add(s);
+});
+
+// Raised rim walls (4 sides)
+[
+  { w: OW + 2*rimT, h: rimH, d: rimT, x: 0,              z:  OD/2 + rimT/2 },
+  { w: OW + 2*rimT, h: rimH, d: rimT, x: 0,              z: -OD/2 - rimT/2 },
+  { w: rimT,        h: rimH, d: OD,   x:  OW/2 + rimT/2, z: 0              },
+  { w: rimT,        h: rimH, d: OD,   x: -OW/2 - rimT/2, z: 0              },
+].forEach(p => {
+  const r = bx(p.w, p.h, p.d, M.frame);
+  r.position.set(p.x, TOP_Y + capH/2 + rimH/2, p.z);
+  Gheader.add(r);
+});
+
+// Inner floor of opening (dark, visible from top)
+const openFloor = bx(OW - 0.004, 0.004, OD - 0.004, M.slotVoid);
+openFloor.position.set(0, TOP_Y + 0.002, 0);
+Gheader.add(openFloor);
+
+// Rubber guide lip on front inner rim
+const rubberLip = bx(OW - 0.01, rimT, rimT * 1.5, M.rubber);
+rubberLip.position.set(0, TOP_Y + capH/2 + rimT/2, OD/2 - rimT);
+Gheader.add(rubberLip);
+
+// LED amber strips along all 4 inner rim edges (rectangular outline)
+const topLedMat = new THREE.MeshStandardMaterial({ color:0xff9f0a, emissive:0xcc6600, emissiveIntensity:1.4 });
+const ledEdgeY = TOP_Y + capH/2 + 0.004;
+// Front & back strips
+[-1, 1].forEach(sz => {
+  const s = bx(OW - 0.006, 0.007, 0.007, topLedMat);
+  s.position.set(0, ledEdgeY, sz * (OD/2 - 0.004));
+  Gheader.add(s);
+});
+// Left & right strips
+[-1, 1].forEach(sx => {
+  const s = bx(0.007, 0.007, OD + 0.006, topLedMat);
+  s.position.set(sx * (OW/2 - 0.004), ledEdgeY, 0);
+  Gheader.add(s);
+});
+
+// AI sensor camera dome (inside opening, faces up)
+// AI sensor dome — larger, sits at far-back of the big opening
+const aiBase = bx(0.055, 0.014, 0.040, M.frameDk);
+aiBase.position.set(0, TOP_Y + capH/2 + 0.007, -(OD/2 - 0.06));
+Gheader.add(aiBase);
+
+const aiDome = sph(0.022, 16, M.scanFrm);
+aiDome.scale.y = 0.5;
+aiDome.position.set(0, TOP_Y + capH/2 + 0.022, -(OD/2 - 0.06));
+Gheader.add(aiDome);
+
+const aiLens = sph(0.011, 10,
+  new THREE.MeshStandardMaterial({ color:0x001133, roughness:0.04, emissive:0x000055, emissiveIntensity:0.8 }));
+aiLens.position.set(0, TOP_Y + capH/2 + 0.030, -(OD/2 - 0.06));
+Gheader.add(aiLens);
+
+// Store positions for labels (defined after TOP_Y/QRX etc are set)
+const SLOT_WP  = new THREE.Vector3(0, TOP_Y + rimH + 0.08, 0.04);
+const AI_WP    = new THREE.Vector3(0, TOP_Y + 0.030, -OD/4);
+
+// ── QR SCANNER MODULE (left of center on header) ─────────────────────
+const QRX  = -UW/4 - 0.02;
+const QRY  = BH + HH * 0.62;
+const QRZ  = UD/2 + 0.003;
+
+// Housing
+const qrHouse = bx(0.088, 0.075, 0.024, M.scanFrm);
+qrHouse.position.set(QRX, QRY, QRZ);
+Gheader.add(qrHouse);
+
+// Face plate
+const qrFace = bx(0.076, 0.063, 0.005, M.frameDk);
+qrFace.position.set(QRX, QRY, QRZ + 0.012);
+Gheader.add(qrFace);
+
+// QR window glass
+const qrWin = bx(0.054, 0.042, 0.003,
+  new THREE.MeshStandardMaterial({ color: 0x0a0e18, roughness: 0.04, metalness: 0.1, transparent: true, opacity: 0.93 }));
+qrWin.position.set(QRX, QRY + 0.006, QRZ + 0.015);
+Gheader.add(qrWin);
+
+// Scan grid lines in window
+[-1, 0, 1].forEach(i => {
+  const sl = bx(0.052, 0.001, 0.001,
+    new THREE.MeshStandardMaterial({ color: 0x00cc44, emissive: 0x009933, emissiveIntensity: 0.6 }));
+  sl.position.set(QRX, QRY + 0.006 + i*0.013, QRZ + 0.017);
+  Gheader.add(sl);
+});
+
+// LED ring around QR scanner
+const qrRing = tor(0.042, 0.003, 32, M.ledBlue);
+qrRing.position.set(QRX, QRY, QRZ + 0.013);
+Gheader.add(qrRing);
+
+// Corner brackets
+[[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([cx,cy2]) => {
+  const bh = bx(0.012, 0.002, 0.001, M.ledGreen);
+  bh.position.set(QRX + cx*0.034, QRY + cy2*0.027, QRZ + 0.017);
+  Gheader.add(bh);
+  const bv = bx(0.002, 0.012, 0.001, M.ledGreen);
+  bv.position.set(QRX + cx*0.034, QRY + cy2*0.027, QRZ + 0.017);
+  Gheader.add(bv);
+});
+
+// SCAN QR label strip above scanner
+const qrLabel = bx(0.076, 0.009, 0.002, M.ledGreen);
+qrLabel.position.set(QRX, QRY + 0.043, QRZ + 0.014);
+Gheader.add(qrLabel);
+
+// Animated scan beam
+const scanBeam = bx(0.052, 0.0015, 0.001, M.scanBeam);
+scanBeam.position.set(QRX, QRY + 0.006, QRZ + 0.017);
+Gheader.add(scanBeam);
+
+// ── LCD DISPLAY (right of center on header) ───────────────────────────
+const DSX  = UW/4 + 0.01;
+const DSY  = BH + HH * 0.60;
+const DSZ  = UD/2 + 0.003;
+const DSW  = 0.130, DSH = 0.105;
+
+// Housing
+const dsHouse = bx(DSW + 0.022, DSH + 0.022, 0.020, M.scanFrm);
+dsHouse.position.set(DSX, DSY, DSZ);
+Gheader.add(dsHouse);
+
+// Screen glass
+const dsGlass = bx(DSW, DSH, 0.004, M.screen);
+dsGlass.position.set(DSX, DSY, DSZ + 0.012);
+Gheader.add(dsGlass);
+
+// Screen UI content (layered boxes)
+const dsStatus = bx(DSW - 0.004, 0.010, 0.001, M.scrBar);
+dsStatus.position.set(DSX, DSY + DSH/2 - 0.008, DSZ + 0.014);
+Gheader.add(dsStatus);
+
+const dsMain = bx(DSW - 0.006, 0.030, 0.001, M.scrUI);
+dsMain.position.set(DSX, DSY + 0.015, DSZ + 0.014);
+Gheader.add(dsMain);
+
+const dsPts = bx(DSW - 0.006, 0.024, 0.001,
+  new THREE.MeshStandardMaterial({ color: 0x1a2a50, roughness: 0.2, emissive: 0x0d1528, emissiveIntensity: 0.6 }));
+dsPts.position.set(DSX, DSY - 0.015, DSZ + 0.014);
+Gheader.add(dsPts);
+
+const dsProg = bx(DSW - 0.016, 0.010, 0.001,
+  new THREE.MeshStandardMaterial({ color: 0x1c2a40, roughness: 0.3, emissive: 0x0a1520, emissiveIntensity: 0.4 }));
+dsProg.position.set(DSX, DSY - 0.038, DSZ + 0.014);
+Gheader.add(dsProg);
+
+const dsFill = bx((DSW - 0.016) * 0.62, 0.006, 0.001, M.progFill);
+dsFill.position.set(DSX - (DSW - 0.016) * 0.19, DSY - 0.038, DSZ + 0.01445);
+Gheader.add(dsFill);
+
+// Animated scan line on display
+const dsLine = bx(DSW - 0.01, 0.002, 0.001,
+  new THREE.MeshStandardMaterial({ color: 0x55aaff, emissive: 0x3388ff, emissiveIntensity: 1.2 }));
+dsLine.position.set(DSX, DSY + 0.03, DSZ + 0.01445);
+Gheader.add(dsLine);
+
+const dsGlow = new THREE.PointLight(0x2255ff, 0.12, 0.35);
+dsGlow.position.set(DSX, DSY, DSZ + 0.1);
+Gheader.add(dsGlow);
+
+// ─────────────────────────────────────────────────────────────────────────
+// INTERIOR COMPONENTS (hidden until revealed)
+// ─────────────────────────────────────────────────────────────────────────
+const COMP_W = (UW - 0.06) / 3;     // ~0.18m each compartment
+const COMP_H = BH - 0.065;
+const COMP_D = UD - 0.05;
+const COMP_Y = COMP_H / 2 + 0.040;
+const offsets = [-COMP_W, 0, COMP_W]; // L=B3, C=Recyclable, R=Non-recyclable
+
+// Inner walls of bin shell
+const iBack = bx(UW - 0.04, BH - 0.025, 0.005, M.innerWall);
+iBack.position.set(0, BY, -UD/2 + 0.03);
+Ginner.add(iBack);
+
+const iTop = bx(UW - 0.04, 0.008, UD - 0.04, M.innerWall);
+iTop.position.set(0, BH - 0.012, 0);
+Ginner.add(iTop);
+
+// 2 vertical dividers
+[-COMP_W/2, COMP_W/2].forEach(dx => {
+  const div = bx(0.010, COMP_H + 0.02, COMP_D, M.innerWall);
+  div.position.set(dx, COMP_Y - 0.01, 0);
+  Ginner.add(div);
+});
+
+// 3 inner bins
+const BIN_COLORS = [M.binBlue, M.binGreen, M.binGray];
+const BIN_LABELS = ['B3', 'Daur\nUlang', 'Tidak\nDaur'];
+const innerBins = [];
+
+offsets.forEach((ox, i) => {
+  const binGrp = new THREE.Group();
+  const mat = BIN_COLORS[i];
+
+  // Bin body
+  const body = bx(COMP_W - 0.02, COMP_H - 0.01, COMP_D - 0.02, mat);
+  body.position.set(0, COMP_H/2, 0);
+  binGrp.add(body);
+
+  // Bin rim (lighter top edge)
+  const rim = bx(COMP_W - 0.015, 0.012, COMP_D - 0.015, M.innerWall);
+  rim.position.set(0, COMP_H + 0.006, 0);
+  binGrp.add(rim);
+
+  // Bin lid (slightly lighter, at angle)
+  const lid = bx(COMP_W - 0.022, 0.008, COMP_D - 0.022, M.innerWall);
+  lid.position.set(0, COMP_H + 0.014, 0);
+  lid.rotation.x = 0.08;
+  binGrp.add(lid);
+
+  // Handle
+  const handle = bx(0.028, 0.020, 0.008, M.innerWall);
+  handle.position.set(0, COMP_H + 0.028, (COMP_D - 0.022)/2 - 0.004);
+  binGrp.add(handle);
+
+  // Zone LED above bin
+  const zoneLed = bx(COMP_W - 0.03, 0.006, 0.005, BIN_COLORS[i]);
+  zoneLed.position.set(0, BH - 0.022, -UD/2 + 0.036);
+  Ginner.add(zoneLed);
+
+  binGrp.position.set(ox, COMP_Y - COMP_H/2 + 0.005, 0);
+  innerBins.push(binGrp);
+  Ginner.add(binGrp);
+});
+
+// ── SORTING CHUTE / MECHANISM ─────────────────────────────────────────
+const chuteY = BH - 0.04;
+
+// Chute platform
+const chutePlat = bx(UW - 0.05, 0.012, UD - 0.06, M.chute);
+chutePlat.position.set(0, chuteY, 0);
+Ginner.add(chutePlat);
+
+// Main sorting flap (animated)
+const sortFlap = bx(COMP_W - 0.01, 0.006, COMP_D * 0.55, M.flap);
+sortFlap.position.set(0, chuteY + 0.009, 0);
+Ginner.add(sortFlap);
+
+// Flap pivot indicator
+const flapPivot = cy(0.006, COMP_D * 0.55, 8, M.frame);
+flapPivot.rotation.x = Math.PI / 2;
+flapPivot.position.set(0, chuteY + 0.013, 0);
+Ginner.add(flapPivot);
+
+// Chute rail guides
+[-COMP_W/2 - 0.005, COMP_W/2 + 0.005].forEach(rx => {
+  const rail = bx(0.008, 0.035, COMP_D - 0.06, M.chute);
+  rail.position.set(rx, chuteY + 0.018, 0);
+  Ginner.add(rail);
+});
+
+// Inner sensor bar (IR detection)
+const irBar = bx(UW - 0.06, 0.014, 0.018, M.frameDk);
+irBar.position.set(0, chuteY + 0.025, COMP_D/2 - 0.01);
+Ginner.add(irBar);
+
+// IR emitter dots
+[-COMP_W, 0, COMP_W].forEach(dx => {
+  const dot = sph(0.005, 8,
+    new THREE.MeshStandardMaterial({ color: 0xff3b00, emissive: 0xcc2200, emissiveIntensity: 0.9 }));
+  dot.position.set(dx, chuteY + 0.025, COMP_D/2 + 0.002);
+  Ginner.add(dot);
+});
+
+Ginner.visible = false;
+
+// ─────────────────────────────────────────────────────────────────────────
+// DETAIL ELEMENTS (screws, vents, branding strip)
+// ─────────────────────────────────────────────────────────────────────────
+// Corner detail screws on header
+[[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([sx,sz]) => {
+  const screw = cy(0.004, 0.003, 8, M.frame);
+  screw.rotation.x = Math.PI / 2;
+  screw.position.set(sx*(UW/2 - 0.02), BH + 0.015, sz*(UD/2 - 0.015) + sz*0.003);
+  Gdetail.add(screw);
+});
+
+// Vent slots on side of header (back)
+for (let i = 0; i < 4; i++) {
+  const vent = bx(0.005, 0.010, 0.022,
+    new THREE.MeshStandardMaterial({ color: 0x0a0a0c, roughness: 0.9 }));
+  vent.position.set(UW/2 + 0.004, BH + 0.08 + i * 0.016, -UD/2 + 0.015 + i*0.005);
+  Gdetail.add(vent);
+}
+
+// NFC / RFID reader (small oval below QR scanner)
+const nfc = bx(0.040, 0.024, 0.006,
+  new THREE.MeshStandardMaterial({ color: 0x1a1a1e, roughness: 0.25, metalness: 0.5 }));
+nfc.position.set(QRX, BH + HH * 0.25, UD/2 + 0.004);
+Gdetail.add(nfc);
+
+const nfcRing = tor(0.012, 0.002, 20, M.ledBlue);
+nfcRing.position.set(QRX, BH + HH * 0.25, UD/2 + 0.006);
+Gdetail.add(nfcRing);
+
+// ─────────────────────────────────────────────────────────────────────────
+// CACHE ORIGINAL MATERIALS
+// ─────────────────────────────────────────────────────────────────────────
+const origMat = new Map();
+BIN.traverse(c => { if (c.isMesh) origMat.set(c.uuid, c.material); });
+
+// ─────────────────────────────────────────────────────────────────────────
+// STATE & INTERACTION
+// ─────────────────────────────────────────────────────────────────────────
+let interior = false, doorsOpen = false, exploded = false;
+let xray = false, wire = false;
+let sortAnim = true;
+let showLabels = false;  // label overlay toggle
+
+let doorAngleL = 0, doorAngleR = 0;
+
+// ── Easing ─────────────────────────────────────────────────────────────
+function ease(x) { return x < 0.5 ? 2*x*x : 1 - Math.pow(-2*x+2,2)/2; }
+function anim(fn, onDone) {
+  let p = 0;
+  (function step() {
+    p = Math.min(p + 0.022, 1);
+    fn(ease(p));
+    if (p < 1) requestAnimationFrame(step);
+    else if (onDone) onDone();
+  })();
+}
+
+// ── Views ──────────────────────────────────────────────────────────────
+const VIEWS = {
+  front:{ p:[0, 0.70, 3.6],  t:[0, 0.50, 0] },
+  back: { p:[0, 0.70,-3.6],  t:[0, 0.50, 0] },
+  side: { p:[3.2,0.70, 0.2], t:[0, 0.50, 0] },
+  top:  { p:[0, 3.8,  0.1],  t:[0, 0.50, 0] },
+  iso:  { p:[1.9,1.5, 2.6],  t:[0, 0.50, 0] },
+};
+const VID = { front:'vFront', back:'vBack', side:'vSide', top:'vTop', iso:'vIso' };
+let viewBusy = false;
+
+window.setV = name => {
+  if (viewBusy) return;
+  const v = VIEWS[name]; if (!v) return;
+  viewBusy = true;
+  Object.entries(VID).forEach(([k,id]) =>
+    document.getElementById(id)?.classList.toggle('on', k===name));
+  const s0 = cam.position.clone(), t0 = orbit.target.clone();
+  const s1 = new THREE.Vector3(...v.p), t1 = new THREE.Vector3(...v.t);
+  anim(k => {
+    cam.position.lerpVectors(s0, s1, k);
+    orbit.target.lerpVectors(t0, t1, k);
+    orbit.update();
+    if (k >= 1) viewBusy = false;
+  });
+};
+
+// ── Interior / cutaway ────────────────────────────────────────────────
+window.tInterior = () => {
+  interior = !interior;
+  document.getElementById('bInt').classList.toggle('on', interior);
+  Ginner.visible = interior || doorsOpen || exploded;
+  if (interior) {
+    mainShell.material = new THREE.MeshStandardMaterial({
+      color: 0xc4c4c6, roughness: 0.22, metalness: 0.1,
+      transparent: true, opacity: 0.13, side: THREE.DoubleSide
+    });
+    doorL.children.forEach(c => { if (c.isMesh) c.material = new THREE.MeshStandardMaterial({ color: 0xc4c4c6, roughness: 0.22, transparent: true, opacity: 0.10, side: THREE.DoubleSide }); });
+    doorR.children.forEach(c => { if (c.isMesh) c.material = new THREE.MeshStandardMaterial({ color: 0xc4c4c6, roughness: 0.22, transparent: true, opacity: 0.10, side: THREE.DoubleSide }); });
+  } else {
+    mainShell.material = origMat.get(mainShell.uuid);
+    [...doorL.children, ...doorR.children].forEach(c => { if (c.isMesh) { const o = origMat.get(c.uuid); if (o) c.material = o; }});
+  }
+};
+
+// ── Open doors ────────────────────────────────────────────────────────
+window.tDoors = () => {
+  doorsOpen = !doorsOpen;
+  document.getElementById('bDoor').classList.toggle('on', doorsOpen);
+  Ginner.visible = interior || doorsOpen || exploded;
+  const al = doorAngleL, ar = doorAngleR;
+  const tl = doorsOpen ?  Math.PI*0.68 : 0;
+  const tr = doorsOpen ? -Math.PI*0.68 : 0;
+  anim(k => {
+    doorAngleL = al + (tl - al)*k;
+    doorAngleR = ar + (tr - ar)*k;
+    doorL.rotation.y = doorAngleL;
+    doorR.rotation.y = doorAngleR;
+  });
+};
+
+// ── Explode ───────────────────────────────────────────────────────────
+const EXPL = {
+  base:   [0,-0.22,0],  body:   [0,0,0],    header: [0,0.22,0],
+  wood:   [0,0,-0.28],  doors:  [0,0, 0.30],inner:  [0,-0.08,0],
+  detail: [0, 0.10,0.22],
+};
+const GMAP = { base:Gbase, body:Gbody, header:Gheader, wood:Gwood, doors:Gdoors, inner:Ginner, detail:Gdetail };
+
+window.tExplode = () => {
+  exploded = !exploded;
+  document.getElementById('bExp').classList.toggle('on', exploded);
+  Ginner.visible = interior || doorsOpen || exploded;
+  const starts = {};
+  Object.keys(GMAP).forEach(k => { starts[k] = GMAP[k].position.clone(); });
+  anim(t => {
+    Object.keys(GMAP).forEach(k => {
+      const tgt = exploded ? EXPL[k] : [0,0,0];
+      GMAP[k].position.lerp(new THREE.Vector3(...tgt), t);
+    });
+  });
+};
+
+// ── Sort demo ─────────────────────────────────────────────────────────
+let sortPhase = 0;
+const sortEl = document.getElementById('sort-indicator');
+const sortLbl = document.getElementById('sort-label');
+const sortZone = document.getElementById('sort-zone');
+
+const SORT_PHASES = [
+  { lbl:'🔍 Mendeteksi sampah…', zone:'AI Sensor aktif', flap:0, led:'blue' },
+  { lbl:'📱 Scan QR berhasil!', zone:'+10 Poin diterima', flap:0, led:'green' },
+  { lbl:'♻️ Plastik terdeteksi', zone:'→ Kompartemen Daur Ulang', flap:0, led:'green' },
+  { lbl:'⚙️ Memilah otomatis…', zone:'Flap bergerak ke tengah', flap:0, led:'amber' },
+  { lbl:'✅ Sampah tersortir!', zone:'Masuk: Daur Ulang (Hijau)', flap:0, led:'green' },
+];
+
+window.tSort = () => {
+  sortAnim = !sortAnim;
+  document.getElementById('bSort').classList.toggle('on-green', sortAnim);
+};
+
+function runSortCycle(t) {
+  if (!sortAnim) { sortEl.style.opacity = '0'; return; }
+  const cycle = (t * 0.4) % SORT_PHASES.length;
+  const phase = Math.floor(cycle);
+  const p = SORT_PHASES[phase % SORT_PHASES.length];
+  sortLbl.textContent = p.lbl;
+  sortZone.textContent = p.zone;
+  sortEl.style.opacity = '0.95';
+
+  // Animate sorting flap direction based on phase
+  const flapTarget = (phase === 3 || phase === 4) ? 0 :        // center for recyclable
+                     (Math.sin(t * 0.25) > 0 ? 0.5 : -0.5);   // sweep
+  sortFlap.rotation.y += (flapTarget - sortFlap.rotation.y) * 0.05;
+
+  // LED bar pulse per zone
+  const ledBright = 0.6 + Math.sin(t * 4) * 0.4;
+  ledB.material.emissiveIntensity = (phase % 3 === 0) ? ledBright : 0.4;
+  ledG.material.emissiveIntensity = (phase % 3 === 1) ? ledBright : 0.4;
+  ledA.material.emissiveIntensity = (phase % 3 === 2) ? ledBright : 0.4;
+}
+
+// ── X-Ray / Wireframe ─────────────────────────────────────────────────
+window.tXray = () => {
+  xray = !xray;
+  if (xray) wire = false;
+  document.getElementById('bXr').classList.toggle('on', xray);
+  document.getElementById('bWf').classList.remove('on');
+  BIN.traverse(c => {
+    if (!c.isMesh) return;
+    if (xray) c.material = M.xray;
+    else { const o = origMat.get(c.uuid); if (o) c.material = o; }
+  });
+};
+
+window.tWire = () => {
+  wire = !wire;
+  if (wire) xray = false;
+  document.getElementById('bWf').classList.toggle('on', wire);
+  document.getElementById('bXr').classList.remove('on');
+  BIN.traverse(c => {
+    if (!c.isMesh) return;
+    if (wire) c.material = M.wireframe;
+    else { const o = origMat.get(c.uuid); if (o) c.material = o; }
+  });
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// ANIMATION LOOP
+// ─────────────────────────────────────────────────────────────────────────
+const clock = new THREE.Clock();
+
+function render() {
+  requestAnimationFrame(render);
+  const t = clock.getElapsedTime();
+  orbit.update();
+
+  // QR scan beam sweep
+  scanBeam.position.y = QRY + 0.006 + Math.sin(t * 2.4) * 0.018;
+  scanBeam.material.emissiveIntensity = 1.8 + Math.sin(t * 5) * 0.7;
+
+  // QR ring pulse
+  qrRing.material.emissiveIntensity = 0.6 + Math.sin(t * 3) * 0.3;
+
+  // Display scan line
+  dsLine.position.y = DSY - DSH/2 + 0.006 + ((t * 0.06) % (DSH - 0.01));
+  dsLine.material.emissiveIntensity = 0.7 + Math.sin(t * 4) * 0.4;
+
+  // Display glow
+  dsGlow.intensity = 0.10 + Math.sin(t * 2) * 0.04;
+
+  // Top LED ring pulse (around opening)
+  topLedMat.emissiveIntensity = 0.8 + Math.sin(t * 1.8) * 0.5;
+
+  // NFC ring pulse
+  nfcRing.material.emissiveIntensity = 0.4 + Math.sin(t * 2.6) * 0.3;
+
+  // Bin zone LEDs glow (if interior visible)
+  if (interior || doorsOpen || exploded) {
+    Ginner.children.forEach(c => {
+      if (c.isMesh && c.material && c.material.emissive) {
+        // zone leds pulse gently
+      }
+    });
+  }
+
+  // Sort simulation
+  runSortCycle(t);
+  updateLabels();
+
+  renderer.render(scene, cam);
+}
+render();
+
+// ── Resize ─────────────────────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  const w = VW(), h = VH();
+  cam.aspect = w / h;
+  cam.updateProjectionMatrix();
+  renderer.setSize(w, h, false);
+});
+
+// Signal loaded
+// ── URL param: ?view=iso|side|back|top|interior|doors|explode ─────────────
+const urlView = new URLSearchParams(location.search).get('view');
+if (urlView) {
+  if (['front','back','side','top','iso'].includes(urlView)) {
+    const v = VIEWS[urlView];
+    cam.position.set(...v.p);
+    orbit.target.set(...v.t);
+    orbit.update();
+  }
+  // Instant (no animation) state toggles for headless capture
+  if (urlView === 'interior') {
+    interior = true;
+    Ginner.visible = true;
+    mainShell.material = new THREE.MeshStandardMaterial({
+      color: 0xc4c4c6, roughness: 0.22, metalness: 0.1,
+      transparent: true, opacity: 0.13, side: THREE.DoubleSide
+    });
+    doorL.children.forEach(c => { if (c.isMesh) c.material = new THREE.MeshStandardMaterial({ color: 0xc4c4c6, roughness: 0.22, transparent: true, opacity: 0.10, side: THREE.DoubleSide }); });
+    doorR.children.forEach(c => { if (c.isMesh) c.material = new THREE.MeshStandardMaterial({ color: 0xc4c4c6, roughness: 0.22, transparent: true, opacity: 0.10, side: THREE.DoubleSide }); });
+  }
+  if (urlView === 'doors') {
+    doorsOpen = true;
+    Ginner.visible = true;
+    doorL.rotation.y =  Math.PI * 0.68;
+    doorR.rotation.y = -Math.PI * 0.68;
+    doorL.position.x =  Math.sin( Math.PI * 0.68) * (UW/2 - 0.022) * 0.5;
+    doorR.position.x =  Math.sin(-Math.PI * 0.68) * (UW/2 - 0.022) * 0.5;
+  }
+  if (urlView === 'explode') {
+    exploded = true;
+    Ginner.visible = true;
+    Object.keys(GMAP).forEach(k => {
+      Gbase.position.set(...(k==='base'   ? EXPL.base   : [0,0,0]));
+      GMAP[k].position.set(...EXPL[k]);
+    });
+  }
+  // For iso+interior combined
+  if (urlView === 'iso-interior') {
+    const v = VIEWS.iso;
+    cam.position.set(...v.p); orbit.target.set(...v.t); orbit.update();
+    interior = true; Ginner.visible = true;
+    mainShell.material = new THREE.MeshStandardMaterial({ color:0xc4c4c6, roughness:0.22, metalness:0.1, transparent:true, opacity:0.13, side:THREE.DoubleSide });
+    doorL.children.forEach(c => { if (c.isMesh) c.material = new THREE.MeshStandardMaterial({ color:0xc4c4c6, transparent:true, opacity:0.08, side:THREE.DoubleSide }); });
+    doorR.children.forEach(c => { if (c.isMesh) c.material = new THREE.MeshStandardMaterial({ color:0xc4c4c6, transparent:true, opacity:0.08, side:THREE.DoubleSide }); });
+  }
+  // iso + open doors (ghost shell to reveal interior)
+  if (urlView === 'iso-doors') {
+    const v = VIEWS.iso;
+    cam.position.set(...v.p); orbit.target.set(...v.t); orbit.update();
+    doorsOpen = true; Ginner.visible = true;
+    doorL.rotation.y =  Math.PI * 0.72;
+    doorR.rotation.y = -Math.PI * 0.72;
+    // Ghost the main shell so interior is visible
+    const ghost = new THREE.MeshStandardMaterial({ color:0xc4c4c6, roughness:0.22, metalness:0.1, transparent:true, opacity:0.12, side:THREE.DoubleSide });
+    mainShell.material = ghost;
+  }
+  // front + open doors
+  if (urlView === 'front-doors') {
+    doorsOpen = true; Ginner.visible = true;
+    doorL.rotation.y =  Math.PI * 0.75;
+    doorR.rotation.y = -Math.PI * 0.75;
+    const ghost = new THREE.MeshStandardMaterial({ color:0xc4c4c6, roughness:0.22, metalness:0.1, transparent:true, opacity:0.10, side:THREE.DoubleSide });
+    mainShell.material = ghost;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// LABEL SYSTEM
+// ─────────────────────────────────────────────────────────────────────────
+
+const LABELS = [
+  { id:'slot',  wp: SLOT_WP,                                          side:'R' },
+  { id:'ai',    wp: AI_WP,                                            side:'L' },
+  { id:'qr',    wp: new THREE.Vector3(QRX,       QRY,       UD/2+0.05), side:'L' },
+  { id:'lcd',   wp: new THREE.Vector3(DSX,       DSY,       UD/2+0.05), side:'R' },
+  { id:'led',   wp: new THREE.Vector3(0.16,      ledY+0.01, UD/2+0.04), side:'R' },
+  { id:'door',  wp: new THREE.Vector3(0.08,      DOOR_DY-0.12, UD/2+0.02), side:'R' },
+  { id:'wood',  wp: new THREE.Vector3(UW/2+0.08, BY+0.18,    0.06),    side:'R' },
+  { id:'frame', wp: new THREE.Vector3(-UW/2+0.01, BY+0.30,  UD/2),    side:'L' },
+  { id:'base',  wp: new THREE.Vector3(0.10,      0.02,       0.12),    side:'R' },
+];
+
+function updateLabels() {
+  const lblDiv = document.getElementById('labels');
+  if (!showLabels) { lblDiv.style.display = 'none'; return; }
+  lblDiv.style.display = 'block';
+  const W = VW(), H = VH();
+  LABELS.forEach(def => {
+    const el = document.getElementById('lbl-' + def.id);
+    if (!el) return;
+    const v = def.wp.clone();
+    v.project(cam);
+    if (v.z >= 1) { el.style.opacity = '0'; return; }
+    const sx = (v.x * 0.5 + 0.5) * W;
+    const sy = (-v.y * 0.5 + 0.5) * H;
+    el.style.opacity = '1';
+    el.style.left = sx + 'px';
+    el.style.top  = sy + 'px';
+    el.style.transform = def.side === 'L'
+      ? 'translate(-100%, -50%)'
+      : 'translate(0, -50%)';
+    el.style.flexDirection = def.side === 'L' ? 'row-reverse' : 'row';
+  });
+}
+
+window.tLabels = () => {
+  showLabels = !showLabels;
+  const btn = document.getElementById('bLbl');
+  btn.classList.toggle('on', showLabels);
+  btn.textContent = showLabels ? '🏷 Sembunyikan Label' : '🏷 Label Bagian';
+  if (showLabels) window.setV('iso');  // best view for labels
+};
+
+window.__modelReady = true;
+</script>
+</body>
+</html>
